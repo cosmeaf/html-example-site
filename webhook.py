@@ -1,57 +1,59 @@
-from flask import Flask, request, jsonify, send_from_directory
-import hmac, hashlib, json, os
+import os
+import hmac
+import hashlib
+import json
 from datetime import datetime
+from flask import Flask, request, abort, jsonify
 from dotenv import load_dotenv
 
-# Carrega variáveis do .env
 load_dotenv()
 
 app = Flask(__name__)
-app.url_map.strict_slashes = False
+GITHUB_SECRET = os.getenv("GITHUB_SECRET", "undefined-secret")
 
-# Secret configurado no GitHub
-GITHUB_SECRET = os.getenv('GITHUB_SECRET')
+LOG_FILE = 'webhook.log'
 
-def verify_signature(data, signature):
-    mac = hmac.new(bytes(GITHUB_SECRET, 'utf-8'), msg=data, digestmod=hashlib.sha1)
-    expected = f'sha1={mac.hexdigest()}'
-    return hmac.compare_digest(expected, signature)
 
-@app.route('/')
-def index():
-    return send_from_directory('.', 'index.html')
+def log_event(event_type, status, message):
+    now = datetime.utcnow().isoformat()
+    log_line = f"[{now} - {event_type.upper()} - {status.upper()}] {message}"
+    print(log_line)
+    with open(LOG_FILE, 'a') as f:
+        f.write(log_line + "\n")
 
-@app.route('/webhook/', methods=['POST'])
-def webhook():
-    event = request.headers.get('X-GitHub-Event', '')
-    signature = request.headers.get('X-Hub-Signature', '')
-    data = request.get_data()
 
-    if not verify_signature(data, signature):
-        print("Assinatura HMAC inválida.")
-        return jsonify({'error': 'Assinatura inválida'}), 403
+def verify_signature(data, signature_header):
+    if not signature_header:
+        return False
+    mac = hmac.new(GITHUB_SECRET.encode(), msg=data, digestmod=hashlib.sha1)
+    expected = f"sha1={mac.hexdigest()}"
+    return hmac.compare_digest(expected, signature_header)
 
-    payload = request.get_json()
 
-    if event == 'ping':
-        print("Ping recebido")
-        return jsonify({'pong': True}), 200
+@app.route('/webhook', methods=['POST'])
+def github_webhook():
+    event = request.headers.get('X-GitHub-Event', 'unknown')
+    signature = request.headers.get('X-Hub-Signature')
+    payload = request.get_data()
 
-    if event == 'push':
-        print(f"Push recebido em: {datetime.now()}")
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    if not verify_signature(payload, signature):
+        log_event(event, '403', 'Assinatura inválida')
+        abort(403)
 
-        os.makedirs("logs", exist_ok=True)
-        with open("logs/push.log", "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now()}] PUSH:\n")
-            f.write(json.dumps(payload, indent=2, ensure_ascii=False))
-            f.write("\n" + "-" * 60 + "\n")
-
+    try:
+        json_data = request.get_json()
+        log_event(event, '200', f"Push recebido em: {datetime.utcnow()} - Repo: {json_data['repository']['full_name']}")
         return jsonify({'status': 'ok'}), 200
+    except Exception as e:
+        log_event(event, '500', f"Erro ao processar JSON: {e}")
+        abort(500)
 
-    return jsonify({'status': 'ignorado', 'event': event}), 200
+
+@app.route('/', methods=['GET'])
+def index():
+    return "Webhook ativo."
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    print(f"Webhook iniciado em http://0.0.0.0:{port}")
     app.run(host='0.0.0.0', port=port)
