@@ -2,25 +2,24 @@ import os
 import hmac
 import hashlib
 import json
-import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from flask import Flask, request, abort, jsonify
 from dotenv import load_dotenv
 
-# Carrega variáveis do .env
 load_dotenv()
-GITHUB_SECRET = os.getenv("GITHUB_SECRET", "undefined-secret")
-
-# Configuração do logger
-LOG_FILE = 'webhook.log'
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format='[%(asctime)s - %(levelname)s] %(message)s',
-    datefmt='%Y-%m-%dT%H:%M:%S%z'
-)
 
 app = Flask(__name__)
+GITHUB_SECRET = os.getenv("GITHUB_SECRET", "undefined-secret")
+
+LOG_FILE = 'webhook.log'
+
+
+def log_event(event_type, status, message):
+    now = datetime.utcnow().isoformat()
+    log_line = f"[{now} - {event_type.upper()} - {status.upper()}] {message}"
+    print(log_line)
+    with open(LOG_FILE, 'a') as f:
+        f.write(log_line + "\n")
 
 
 def verify_signature(data, signature_header):
@@ -38,16 +37,15 @@ def github_webhook():
     payload = request.get_data()
 
     if not verify_signature(payload, signature):
-        logging.warning(f"[{event}] Assinatura inválida")
+        log_event(event, '403', 'Assinatura inválida')
         abort(403)
 
     try:
         json_data = request.get_json()
-        repo = json_data.get('repository', {}).get('full_name', 'unknown')
-        logging.info(f"[{event}] Push recebido - Repo: {repo}")
+        log_event(event, '200', f"Push recebido em: {datetime.utcnow()} - Repo: {json_data['repository']['full_name']}")
         return jsonify({'status': 'ok'}), 200
     except Exception as e:
-        logging.error(f"[{event}] Erro ao processar JSON: {e}")
+        log_event(event, '500', f"Erro ao processar JSON: {e}")
         abort(500)
 
 
@@ -58,6 +56,4 @@ def index():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    print(f"[INFO] Servidor Flask iniciado em http://0.0.0.0:{port} — aguardando webhooks...")
     app.run(host='0.0.0.0', port=port)
-

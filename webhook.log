@@ -24,3 +24,5 @@
  * Running on http://127.0.0.1:8080
  * Running on http://185.44.65.171:8080
 [2025-08-03T19:52:10+0000 - INFO] [33mPress CTRL+C to quit[0m
+[2025-08-03T19:52:25+0000 - INFO] [push] Push recebido - Repo: cosmeaf/html-example-site
+[2025-08-03T19:52:25+0000 - INFO] 127.0.0.1 - - [03/Aug/2025 19:52:25] "POST /webhook HTTP/1.1" 200 -
