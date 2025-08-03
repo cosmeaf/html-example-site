@@ -58,4 +58,6 @@ def index():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
+    print(f"[INFO] Servidor Flask iniciado em http://0.0.0.0:{port} — aguardando webhooks...")
     app.run(host='0.0.0.0', port=port)
+
