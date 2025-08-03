@@ -3,13 +3,13 @@ import hmac, hashlib, json, os
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Carrega variáveis do arquivo .env
+# Carrega variáveis do .env
 load_dotenv()
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
 
-# Pega o segredo do GitHub do .env
+# Secret configurado no GitHub
 GITHUB_SECRET = os.getenv('GITHUB_SECRET')
 
 def verify_signature(data, signature):
@@ -28,20 +28,19 @@ def webhook():
     data = request.get_data()
 
     if not verify_signature(data, signature):
-        print("❌ Assinatura HMAC inválida.")
+        print("Assinatura HMAC inválida.")
         return jsonify({'error': 'Assinatura inválida'}), 403
 
     payload = request.get_json()
 
     if event == 'ping':
-        print("📡 Ping recebido")
+        print("Ping recebido")
         return jsonify({'pong': True}), 200
 
     if event == 'push':
-        print(f"✅ Push recebido: {datetime.now()}")
+        print(f"Push recebido em: {datetime.now()}")
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
-        # Salvar log
         os.makedirs("logs", exist_ok=True)
         with open("logs/push.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now()}] PUSH:\n")
@@ -54,5 +53,5 @@ def webhook():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    print(f"🚀 Webhook rodando em http://0.0.0.0:{port}")
+    print(f"Webhook iniciado em http://0.0.0.0:{port}")
     app.run(host='0.0.0.0', port=port)
